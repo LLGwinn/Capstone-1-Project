@@ -1,12 +1,12 @@
-import os, requests
+import os, requests, keys
 
-from flask import Flask, render_template, request, flash, redirect, session, g, jsonify
+from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from requests.api import get
 from sqlalchemy.exc import IntegrityError
 
 from models import db, connect_db, User, User_Favorites, Geocode
-from forms import UserAddForm, LoginForm, UserEditForm
+from forms import LoginForm, UserEditForm
 
 CURR_USER_KEY = 'curr_user'
 
@@ -37,13 +37,12 @@ def get_state_abbr(state_code):
         if state_code == code:
             return abbr
 
-
 ##############################################################################
 # API Calls
 def get_weather(city):
     """ Access OpenWeather API for current weather """
     res = requests.get(
-        f'https://api.openweathermap.org/data/2.5/weather?q={city}&units=imperial&appid=38b23dca5266fbaec142ba9c8f6ccac8'
+        f'https://api.openweathermap.org/data/2.5/weather?q={city}&units=imperial&appid={keys.weather_key}'
         )
     data = res.json()
 
@@ -105,19 +104,16 @@ def logout():
         session.pop(CURR_USER_KEY)
         flash("Logout successful", 'success')
 
-
 @app.route('/register')
 def show_registration_form():
-    """ Create new user, add to DB, log user in. 
-        If form validation fails, present form.
-        If username is already in db, flash message and re-render form.
-    """
-
+ 
     return render_template('register.html', states=states)
 
 @app.route('/register', methods=['POST'])
 def create_account():
-
+    """ Create new user, add to DB, log user in. 
+        If username is already in db, flash message and re-render form.
+    """
     city_id = Geocode.query.filter(Geocode.name.like(f'{request.form["city"]}%'), 
                                     Geocode.state==request.form['state']).first()
 
@@ -251,6 +247,28 @@ def compare_cities():
 
     return render_template('comparison.html', curr=curr_data, dest=dest_data)
 
+# ##############################################################################
+# # Turn off all caching in Flask
+# #   (useful for dev; in production, this kind of stuff is typically
+# #   handled elsewhere)
+# #
+# # https://stackoverflow.com/questions/34066804/disabling-caching-in-flask
+
+@app.after_request
+def add_header(req):
+    """Add non-caching headers on every request."""
+
+    req.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    req.headers["Pragma"] = "no-cache"
+    req.headers["Expires"] = "0"
+    req.headers['Cache-Control'] = 'public, max-age=0'
+    return req
+
+
+
+
+
+
 
 
 #################################################
@@ -348,53 +366,6 @@ def compare_cities():
 
 #     return redirect("/signup")
 
-# ##############################################################################
-# # Messages routes:
-
-# @app.route('/messages/new', methods=["GET", "POST"])
-# def messages_add():
-#     """Add a message:
-
-#     Show form if GET. If valid, update message and redirect to user page.
-#     """
-
-#     if not g.user:
-#         flash("Access unauthorized.", "danger")
-#         return redirect("/")
-
-#     form = MessageForm()
-
-#     if form.validate_on_submit():
-#         msg = Message(text=form.text.data)
-#         g.user.messages.append(msg)
-#         db.session.commit()
-
-#         return redirect(f"/users/{g.user.id}")
-
-#     return render_template('messages/new.html', form=form)
-
-
-# @app.route('/messages/<int:message_id>', methods=["GET"])
-# def messages_show(message_id):
-#     """Show a message."""
-
-#     msg = Message.query.get(message_id)
-#     return render_template('messages/show.html', message=msg)
-
-
-# @app.route('/messages/<int:message_id>/delete', methods=["POST"])
-# def messages_destroy(message_id):
-#     """Delete a message."""
-
-#     if not g.user:
-#         flash("Access unauthorized.", "danger")
-#         return redirect("/")
-
-#     msg = Message.query.get(message_id)
-#     db.session.delete(msg)
-#     db.session.commit()
-
-#     return redirect(f"/users/{g.user.id}")
 
 # ##############################################################################
 # # Homepage and error pages
@@ -439,21 +410,6 @@ def compare_cities():
 #     req.headers['Cache-Control'] = 'public, max-age=0'
 #     return req
 
-# @app.route('/users')
-# def list_users():
-#     """Page with listing of users.
-
-#     Can take a 'q' param in querystring to search by that username.
-#     """
-
-#     search = request.args.get('q')
-
-#     if not search:
-#         users = User.query.all()
-#     else:
-#         users = User.query.filter(User.username.like(f"%{search}%")).all()
-
-#     return render_template('users/index.html', users=users)
 
 
 # @app.route('/users/<int:user_id>')
