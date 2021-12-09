@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container my-5">
+    <p class="lead text-white text-center display-5">
+        Here's what we found.
+    </p>
+    <div class="row mt-5">
+        <div class="col-6">
+            <div class="card border-dark">
+                <div class="row card-header m-0 p-0">
+                    <div class="col-4 bg-success ps-2 text-dark bg-opacity-10">
+                        <p class='fs-3 fw-bold m-0 d-flex align-items-center'>
+                            <img src="http://openweathermap.org/img/w/{{curr.weather['icon']}}.png" 
+                            class="img-fluid" width='60px' alt="weather icon">
+                            &nbsp;&nbsp;{{curr.weather['temp']|int}}&#176
+                        </p>
+                    </div>
+                    <div class='col-8  d-flex align-items-end'>
+                        <h3 class="card-title">{{curr.name}}, {{curr.abbr}}</h5>
+                    </div>           
+                </div>            
+                <div class="row">
+                    <div class="card-body">
+                        <ul class='list-unstyled ms-3'>
+                            <li><span class='ms-5 me-2'><i class="fas fa-users"></i></span>
+                                Population: {{ "{:,}".format(curr.census["pop"]|int) }}</li>
+                            <li><span class='ms-5 me-2'><i class="fas fa-money-bill-wave"></i></span>
+                                Area Median Income: ${{ "{:,}".format(curr.census["inc"]|int) }}</li>
+                            <li><span class='ms-5 me-2'><i class="fas fa-home"></i></span>
+                                Average Home Value: ${{ "{:,}".format(curr.census["home"]|int) }}</li>
+                            <li><span class='ms-5 me-2'><i class="fas fa-portrait"></i></span>
+                                Median Age: {{curr.census["age"]}}</li>
+                        </ul>
+                    </div>
+                </div>   
+            </div>
+        </div>
+    
+        <div class="col-6">
+            <div class="card border-dark">
+                <div class="row card-header m-0 p-0">
+                    <div class="col-4 bg-success ps-2 text-dark bg-opacity-10">
+                        <p class='fs-3 fw-bold m-0 d-flex align-items-center'>
+                            <img src="http://openweathermap.org/img/w/{{dest.weather['icon']}}.png" 
+                            class="img-fluid" width='60px' alt="weather icon">
+                            &nbsp;&nbsp;{{dest.weather['temp']|int}}&#176
+                        </p>
+                    </div>
+                    <div class='col-8  d-flex align-items-end'>
+                        <h3 class="card-title">{{dest.name}}, {{dest.abbr}}</h5>
+                    </div>           
+                </div>            
+                <div class="row">
+                    <div class="card-body">
+                        <ul class='list-unstyled ms-3'>
+                            <li><span class='ms-5 me-2'><i class="fas fa-users"></i></span>
+                                Population: {{ "{:,}".format(dest.census["pop"]|int) }}</li>
+                            <li><span class='ms-5 me-2'><i class="fas fa-money-bill-wave"></i></span>
+                                Area Median Income: ${{ "{:,}".format(dest.census["inc"]|int) }}</li>
+                            <li><span class='ms-5 me-2'><i class="fas fa-home"></i></span>
+                                Average Home Value: ${{ "{:,}".format(dest.census["home"]|int) }}</li>
+                            <li><span class='ms-5 me-2'><i class="fas fa-portrait"></i></span>
+                                Median Age: {{dest.census["age"]}}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class='fs-6 fw-light fst-italic text-white text-center'>
+        Datasource: US Census Bureau: American Community Survey 5-Year Data (2009-2019)
+    </p>
+    <div class='rounded row mt-5 bg-light bg-opacity-10'>
+        <h5 class='text-white text-center pt-2'>
+            Should you relocate from {{curr.name}} to {{dest.name}}? <br>Maybe.</h5>
+        <p class='text-white text-center'>
+        <a href='#' class='text-decoration-none'>Click here</a>&nbsp;for some advice.
+        </p>
+        
+    </div>
+    <div>
+        <p class="lead text-white text-center mt-5">
+            <a href='/register' class='text-decoration-none text-white'>Create an account</a>
+            or <a href='/login' class='text-decoration-none text-white'>log in</a>
+            to save your favorite cities!
+        </p>
+    </div> 
+
+</div>
+ 
+{% endblock %}

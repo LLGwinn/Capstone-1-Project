@@ -1,0 +1,8 @@
+body {
+    background-image: url('/static/images/bg-moving.jpg');
+    background-repeat: no-repeat;
+    height: 600px;
+    background-position: center;
+    background-size: cover;
+    position: relative;
+  }
