@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<p class="lead text-white text-center display-5 my-5">
+    Your information.
+</p>
+<p class='fs-3 text-center text-white mb-0'>
+    Username
+</p>
+<p class='fs-3 text-center text-dark mb-5'>
+    {{ user.username }}
+</p>
+
+<div class="row justify-content-center" id="info-box-row">
+    <div class="col-4">
+        <div class="row mb-0 pb-0">
+            <p class='text-white mb-0'>Profile Information</p>
+        </div>
+        <div class="row rounded bg bg-light mt-0">
+            <div class="col-12">
+                <ul class='list-unstyled mt-2 p-1'>
+                    <li class='pb-2'><span class='me-1'><i class="fas fa-user"></i></span>
+                        Username: {{user.username}}
+                    </li>
+                    <li class='pb-2'><span class='me-1'><i class="fas fa-envelope"></i></span>
+                        Email: {{user.email}}
+                    </li>
+                    <li><span class='me-1'><i class="fas fa-map-marker-alt"></i></span>
+                        Current City: {{user_city}}
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class='mt-2 text-center'>
+            <a href="/users/{{user.id}}/edit" class="btn btn-dark">Edit profile</a>
+        </div>
+        
+    </div>
+    <div class="col-4 mx-5">
+        <div class="row mb-0 pb-0">
+            <p class='text-white mb-0'>Favorite cities</p>
+        </div>
+        <div class="row rounded bg bg-light mt-0">
+            <div class="col-12">
+                <ul class='list-unstyled mt-2'>
+                    {% for favorite in favorites %}
+                    <div class='row' id='li-btn-container' data-id={{favorite.id}}>
+                        <div class="col-10 d-flex align-items-center">
+                            <li><span class='me-1'><i class="fas fa-map-marker-alt"></i></span>
+                                {{favorite.name.rsplit(' ', 1)[0]}}, {{favorite.abbr}}
+                            </li>
+                        </div>
+                        <div class="col-2 d-flex align-items-center">
+                              <button class="btn delete-fav" type="submit">
+                                  <i class="far fa-trash-alt"></i>
+                              </button>  
+                        </div>
+                    </div>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+<script src='../static/delete_fav.js'></script>
+{% endblock %}

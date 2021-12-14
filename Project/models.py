@@ -3,10 +3,8 @@
 from flask_bcrypt import Bcrypt
 from flask_sqlalchemy import SQLAlchemy
 
-
 bcrypt = Bcrypt()
 db = SQLAlchemy()
-
 
 def connect_db(app):
     """ Connect db to Flask app """
@@ -77,16 +75,12 @@ class User(db.Model):
         nullable=False
     )
 
-    cities = db.relationship('Geocode', backref='users')
+    favorites = db.relationship('Geocode', secondary='favorites', backref='users')
+    cities = db.relationship('Geocode', backref='user_ids')
 
     def __repr__(self):
         return f'<User #{self.id}: {self.username}>'
 
-    def get_favorites(self):
-        """ Return all cities favorited by this user """
-
-        favs_list = [favorite for favorite in User_Favorites.query.all() if self.id == User_Favorites.user_id]
-        return favs_list
 
     @classmethod
     def register(cls, username, password, email, curr_city):
@@ -142,3 +136,5 @@ class User_Favorites(db.Model):
         unique=True,
         nullable=False
     )
+
+        

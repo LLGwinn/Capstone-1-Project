@@ -1,9 +1,10 @@
-import os, requests, keys
+import os, requests, keys, math
 
 from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from requests.api import get
 from sqlalchemy.exc import IntegrityError
+from flask_bcrypt import Bcrypt
 
 from models import db, connect_db, User, User_Favorites, Geocode
 from forms import LoginForm, UserEditForm
@@ -26,6 +27,7 @@ toolbar = DebugToolbarExtension(app)
 
 connect_db(app)
 
+bcrypt = Bcrypt()
 
 states = db.session.query(
         Geocode.state.distinct(),Geocode.abbr).order_by(Geocode.abbr).all()
@@ -37,6 +39,67 @@ def get_state_abbr(state_code):
         if state_code == code:
             return abbr
 
+def analyze(curr, dest):
+    """ Compare income and home value data from both cities """
+
+    inc_ratio = round(
+        (int(dest['census']['inc'])/int(curr['census']['inc'])), 
+        2)
+
+    home_ratio = round(
+       (int(dest['census']['home'])/int(curr['census']['home'])),
+        2)
+
+    # positive income move, home price same or positive within 5%
+    # (more money, same buying power)
+    if (inc_ratio >= 1) and (inc_ratio <= home_ratio <= (inc_ratio + .05)):
+        income = 'higher'
+        inc_percent = round((inc_ratio - 1) * 100)
+        home = 'are about the same.'
+        msg = 'This could be a good move for you!'
+
+    # positive income move, home prices lower
+    # (more money, more buying power)
+    if (inc_ratio >= 1) and (home_ratio < inc_ratio):
+        income = 'higher'
+        inc_percent = round((inc_ratio - 1) * 100)
+        home = f'are {round(100 - (home_ratio * 100))}% lower'
+        msg = 'This is definitely a good move for you!'
+
+    # positive income move, home price positive at least 5% higher
+    # (more money, less buying power)
+    elif (inc_ratio >= 1) and (home_ratio > (inc_ratio + .05)):
+        income = 'higher'
+        inc_percent = round((inc_ratio - 1) * 100)
+        home = f'would be {round((home_ratio -1) * 100)}% more'
+        msg = 'Your buying power is lower. Not a good move.'
+
+    # negative income move, home prices same or positive within 5%
+    # (less money, same buying power)
+    elif (inc_ratio < 1) and (inc_ratio <= home_ratio <= (inc_ratio + .05)):
+        income = 'lower'
+        inc_percent = round(100 - (inc_ratio * 100))
+        home = 'are about the same'
+        msg = 'It might not be disastrous, but how important is this move?'
+
+    # negative income move, home prices lower
+    # (less money, more buying power)
+    elif (inc_ratio < 1) and (home_ratio <= (inc_ratio + .05)):
+        income = 'lower'
+        inc_percent = round(100 - (inc_ratio * 100))
+        home = f'would be {round(100 - (home_ratio * 100))}% lower'
+        msg = 'It might not be disastrous, but how important is this move?'
+
+    # negative income move, home prices positive at least 5% higher
+    # (less money, less buying power)
+    elif (inc_ratio < 1) and (home_ratio > (inc_ratio + .05)):
+        income = 'lower'
+        inc_percent = round(100 - (inc_ratio * 100))
+        home = f'would be {round((home_ratio -1) * 100)}% more'
+        msg = 'Lower pay and less buying power. Terrible move!'
+  
+    return ({'inc':income, 'inc_perc':inc_percent, 'home':home, 'msg':msg }) 
+
 ##############################################################################
 # API Calls
 def get_weather(city):
@@ -46,16 +109,23 @@ def get_weather(city):
         )
     data = res.json()
 
-    icon_code = data['weather'][0]['icon']
-    conditions = data['weather'][0]['description']
-    temp = data['main']['temp']
-
-    return {'icon':icon_code, 'conditions':conditions, 'temp':temp}
+    if data['cod'] == '404':
+        return{'icon':'01n', 'temp':None}
+    else:
+        icon_code = data['weather'][0]['icon']
+        temp = data['main']['temp']
+        return {'icon':icon_code, 'temp':temp}
 
 def get_census_data(city, state):
     """ Access U.S. Census American Community Survey """
 
     base_url = 'https://api.census.gov/data/2019/acs/acs5/profile?get=NAME,'
+    vars = {
+            'pop':'DP05_0001E', 
+            'age':'DP05_0018E', 
+            'inc':'DP03_0062E', 
+            'home':'DP04_0089E'
+            }
 
     geocode = Geocode.query.filter(
         Geocode.name.like(f'{city}%'),
@@ -63,36 +133,41 @@ def get_census_data(city, state):
         ).first()
 
     if geocode:
-        state = geocode.state
-        place = geocode.place
-        vars = {
-            'pop':'DP05_0001E', 
-            'age':'DP05_0018E', 
-            'inc':'DP03_0062E', 
-            'home':'DP04_0089E'
-            }
+        geo_state = geocode.state
+        geo_place = geocode.place
+        geo_id = geocode.id
 
         query_url = base_url + \
-            (f'{vars["pop"]},{vars["age"]},{vars["inc"]},{vars["home"]}&for=place:{place}&in=state:{state}')
+            (f'{vars["pop"]},{vars["age"]},{vars["inc"]},{vars["home"]}&for=place:{geo_place}&in=state:{geo_state}')
 
         response = requests.get(query_url)
         data = response.json()
 
-        return data
+        geocode_data = {"id":geo_id,
+                        "pop":data[1][1], 
+                        "age":data[1][2],
+                        "inc":data[1][3], 
+                        "home":data[1][4],
+                        "state":geo_state,
+                        "place":geo_place}
+
+        for item in geocode_data:
+            if geocode_data[item] == '-888888888':
+                geocode_data[item] = "no data available"
+
+        return geocode_data
     
     else:
-        return False
+        return {"id":'city not found',
+                "pop":'city not found', 
+                "age":'city not found',
+                "inc":'city not found', 
+                "home":'city not found',
+                "state":'00',
+                "place":'00'}
 
 ##############################################################################
 # Register/login/logout
-
-@app.before_request
-def add_user_to_g():
-    """ If a user is logged in, add curr user to Flask global """
-    if CURR_USER_KEY in session:
-        g.user = User.query.get(session[CURR_USER_KEY])
-    else:
-        g.user = None
 
 def login(user):
     """ Log in user """
@@ -102,7 +177,14 @@ def logout():
     """ Logout user """
     if CURR_USER_KEY in session:
         session.pop(CURR_USER_KEY)
-        flash("Logout successful", 'success')
+
+@app.before_request
+def add_user_to_g():
+    """ If a user is logged in, add curr user to Flask global """
+    if CURR_USER_KEY in session:
+        g.user = User.query.get(session[CURR_USER_KEY])
+    else:
+        g.user = None
 
 @app.route('/register')
 def show_registration_form():
@@ -158,31 +240,122 @@ def handle_logout():
 
     logout()
 
-    return redirect('/login')
+    return redirect('/')
 
 # ##############################################################################
-# # Homepage
+# Homepage
 
 @app.route('/')
 def show_homepage():
 
     return render_template('home.html', states=states)
 
-
 ##############################################################################
 # User routes:
-# @app.route('/user/<int:user_id>')
-# def show_user_info(user_id):
-#     """ Show user profile information and favorite cities """
 
+@app.route('/users/<int:user_id>')
+def show_user_info(user_id):
+    """ Show user profile information and favorite cities """
 
-# @app.route('user/<int:user_id>/edit', methods=['POST'])
-# def edit_user(user_id):
-#     """ Edit user profile information """
+    if not g.user:
+        flash("Please log in to view user profile.", "danger")
+        return redirect('/login')
 
+    else:
+        user = User.query.get(user_id)
+        user_city = (Geocode.query.get(user.current_city)).name.rsplit(' ',1)[0]
+        favs = user.favorites
+
+        return render_template('user_info.html', favorites=favs, user=user, user_city=user_city)
+
+@app.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
+def edit_user(user_id):
+    """ Edit user profile information """
+
+    if not g.user:
+        flash("Please log in to edit.", "danger")
+        return redirect('/login')
+
+    else:
+        user = User.query.get_or_404(user_id)
+        user_city = (Geocode.query.get(user.current_city)).name.rsplit(' ',1)[0]
+        user_state = (Geocode.query.get(user.current_city)).state
+        form = UserEditForm(obj=user, state=(Geocode.query.get(user.current_city)).abbr)
+        form.state.choices = [abbr for code, abbr in states]
+
+        if form.validate_on_submit():
+            authorized = User.authenticate(g.user.username, form.old_pw.data)
+
+            if authorized:
+                user.username = g.user.username
+                if form.new_pw.data:
+                    new_hashed_pw = bcrypt.generate_password_hash(form.new_pw.data).decode('UTF-8')
+                    user.password = new_hashed_pw
+                if form.email.data:
+                    user.email = form.email.data
+                if form.city.data:
+                    user.current_city = Geocode.query.filter(
+                            Geocode.name.like(f'{form.city.data}%'),
+                            Geocode.abbr==form.state.data
+                    ).first().id
+
+                db.session.add(user)
+                db.session.commit()
+
+                return redirect(f'/users/{user.id}')
+
+            else:
+                flash("Username/password incorrect", "danger")
+                return redirect("/")
+
+        return render_template('user_edit.html', user=user, form=form, 
+                            user_city=user_city, user_state=user_state)
+
+@app.route('/users/favs/add/<int:geo_id>', methods=['POST'])
+def toggle_fav_city(geo_id):
+    """ Add or remove city from favorites table """
+
+    if not g.user:
+        flash("Please log in to add a favorite.", "danger")
+        return redirect('/login')
+
+    else:
+        geocode = Geocode.query.get_or_404(geo_id)
+        user = g.user.id
+
+        fav = User_Favorites.query.filter(User_Favorites.city_id==geocode.id,
+                                            User_Favorites.user_id==user).one_or_none()
+
+        # if city is already favorited, unfavorite
+        if fav:
+            db.session.delete(fav)
+        # if city not favorited already, create a new favorite
+        else:
+            new_favorite = User_Favorites(city_id=geocode.id, user_id=user)
+            db.session.add(new_favorite)
+
+        db.session.commit()
+
+        return redirect('', 204)
+
+@app.route('/users/<int:user_id>/delete')
+def delete_user(user_id):
+    """ Delete user from db """
+
+    if not g.user:
+        flash("Please log in to delete your account.", "danger")
+        return redirect('/login')
+
+    else:
+        logout()
+        db.session.delete(g.user)
+        db.session.commit()
+
+        return redirect("/")
 
 ##############################################################################
-# City routes: 
+# City routes:
+ 
 @app.route('/cities/compare')
 def compare_cities():
     """ Show data for two cities""" 
@@ -192,60 +365,49 @@ def compare_cities():
     dest_city = request.args.get('dest-city')
     dest_state = request.args.get('dest-state')
 
-    curr_weather = get_weather(curr_city)
-    dest_weather = get_weather(dest_city)
-
     curr_census_data = get_census_data(curr_city, curr_state)
     dest_census_data = get_census_data(dest_city, dest_state)
 
-    if curr_census_data:
-        curr_census = {
-            "pop":curr_census_data[1][1],
-            "age":curr_census_data[1][2],
-            "inc":curr_census_data[1][3],
-            "home":curr_census_data[1][4]
-        }
+    if curr_census_data['state'] != '00':
+        curr_weather = get_weather(curr_city)
     else:
-        curr_census = {
-            "pop":"not found",
-            "age":"not found",
-            "inc":"not found",
-            "home":"not found"
-            }
+        curr_weather = {'icon':'01n', 'temp':None}
 
-    if dest_census_data:
-        dest_census = {
-            "pop":dest_census_data[1][1],
-            "age":dest_census_data[1][2],
-            "inc":dest_census_data[1][3],
-            "home":dest_census_data[1][4]
-            }
+    if dest_census_data['state'] != '00':
+        dest_weather = get_weather(dest_city)
     else:
-        dest_census = {
-            "pop":"not found",
-            "age":"not found",
-            "inc":"not found",
-            "home":"not found"
-            }
-
-    for item in curr_census:
-        if curr_census[item] == '-888888888':
-            curr_census[item] = "no data available"
-
-    for item in dest_census:
-        if dest_census[item] == '-888888888':
-            dest_census[item] = "no data available"
+        dest_weather = {'icon':'01n', 'temp':None}
         
     curr_data = {"name":curr_city,
                  "abbr": get_state_abbr(curr_state),
-                 "census":curr_census, 
+                 "census":curr_census_data, 
                  "weather":curr_weather}
     dest_data = {"name":dest_city,
                  "abbr": get_state_abbr(dest_state),
-                 "census":dest_census,
+                 "census":dest_census_data,
                  "weather":dest_weather}
 
-    return render_template('comparison.html', curr=curr_data, dest=dest_data)
+    if g.user:
+        favorites = [city.id for city in g.user.favorites]
+    else:
+        favorites = []
+
+    session['curr_data'] = curr_data
+    session['dest_data'] = dest_data
+
+    return render_template('comparison.html', curr=curr_data, dest=dest_data, favorites=favorites)
+
+@app.route('/cities/advice')
+def get_advice():
+    """ Show user quick analysis of two cities """
+
+    curr = session['curr_data']
+    dest = session['dest_data']
+
+    results = analyze(curr, dest)
+
+    return render_template('advice.html', results=results, curr=curr, dest=dest)
+
 
 # ##############################################################################
 # # Turn off all caching in Flask
@@ -263,228 +425,3 @@ def add_header(req):
     req.headers["Expires"] = "0"
     req.headers['Cache-Control'] = 'public, max-age=0'
     return req
-
-
-
-
-
-
-
-
-#################################################
-# examples
-#################################################
-# @app.route('/users/<int:user_id>')
-# def users_show(user_id):
-#     """ Show user profile """
-
-#     user = User.query.get_or_404(user_id)
-
-#     # snagging messages in order from the database;
-#     # user.messages won't be in order by default
-#     messages = (Message
-#                 .query
-#                 .filter(Message.user_id == user_id)
-#                 .order_by(Message.timestamp.desc())
-#                 .limit(100)
-#                 .all())
-#     return render_template('users/show.html', user=user, messages=messages)
-
-# @app.route('/users/add_like/<int:msg_id>', methods=['POST'])
-# def toggle_like_message(msg_id):
-#     """ Add or remove 'like' from likes table """
-#     msg = Likes.query.filter(Likes.message_id==msg_id).first()
-
-#     # if message is already liked, unlike
-#     if msg:
-#         db.session.delete(msg)
-#     # if message not liked already, create a new like
-#     else:
-#         new_like = Likes(message_id=msg_id, user_id=g.user.id)
-#         db.session.add(new_like)
-
-#     db.session.commit()
-
-#     return redirect('/')
-
-# @app.route('/users/<int:user_id>/likes')
-# def users_likes(user_id):
-#     """ Show list of liked messages for this user """
-#     if not g.user:
-#         flash("Access unauthorized.", "danger")
-#         return redirect("/")
-
-#     user = User.query.get_or_404(user_id)
-    
-#     return render_template('users/show.html', user=user, messages=user.likes)
-
-    
-# @app.route('/users/<int:user_id>/profile', methods=["GET", "POST"])
-# def profile(user_id):
-#     """ Update profile for current user """
-#     if not g.user:
-#         flash("Access unauthorized.", "danger")
-#         return redirect("/")
-
-#     user = User.query.get_or_404(user_id)
-#     form = UserEditForm(obj=user)
-
-#     if form.validate_on_submit():
-#         authorized = User.authenticate(form.username.data, form.password.data)
-
-#         if authorized:
-#             user.username = form.username.data
-#             user.email = form.email.data
-#             user.image_url = form.image_url.data
-#             user.header_image_url = form.header_image_url.data
-#             user.bio = form.bio.data
-
-#             db.session.add(user)
-#             db.session.commit()
-
-#             return redirect(f'/users/{user_id}')
-
-#         else:
-#             flash("Username/password incorrect", "danger")
-#             return redirect("/")
-
-#     return render_template('/users/edit.html', user=user, form=form)
-
-
-# @app.route('/users/delete', methods=["POST"])
-# def delete_user():
-#     """Delete user."""
-
-#     if not g.user:
-#         flash("Access unauthorized.", "danger")
-#         return redirect("/")
-
-#     do_logout()
-
-#     db.session.delete(g.user)
-#     db.session.commit()
-
-#     return redirect("/signup")
-
-
-# ##############################################################################
-# # Homepage and error pages
-
-# @app.route('/')
-# def homepage():
-#     """Show homepage:
-
-#     - anon users: no messages
-#     - logged in: 100 most recent messages of followed_users
-#     """
-#     if g.user:
-#         users_followed = [f_user.id for f_user in g.user.following]
-
-#         messages = (Message
-#                     .query
-#                     .filter((Message.user_id==g.user.id) | (Message.user_id.in_(users_followed)))
-#                     .order_by(Message.timestamp.desc())
-#                     .limit(100)
-#                     .all())
-
-#         return render_template('home.html', messages=messages)
-
-#     else:
-#         return render_template('home-anon.html')
-
-
-# ##############################################################################
-# # Turn off all caching in Flask
-# #   (useful for dev; in production, this kind of stuff is typically
-# #   handled elsewhere)
-# #
-# # https://stackoverflow.com/questions/34066804/disabling-caching-in-flask
-
-# @app.after_request
-# def add_header(req):
-#     """Add non-caching headers on every request."""
-
-#     req.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-#     req.headers["Pragma"] = "no-cache"
-#     req.headers["Expires"] = "0"
-#     req.headers['Cache-Control'] = 'public, max-age=0'
-#     return req
-
-
-
-# @app.route('/users/<int:user_id>')
-# def users_show(user_id):
-#     """ Show user profile """
-
-#     user = User.query.get_or_404(user_id)
-
-#     # snagging messages in order from the database;
-#     # user.messages won't be in order by default
-#     messages = (Message
-#                 .query
-#                 .filter(Message.user_id == user_id)
-#                 .order_by(Message.timestamp.desc())
-#                 .limit(100)
-#                 .all())
-#     return render_template('users/show.html', user=user, messages=messages)
-
-
-# @app.route('/users/add_like/<int:msg_id>', methods=['POST'])
-# def toggle_like_message(msg_id):
-#     """ Add or remove 'like' from likes table """
-#     msg = Likes.query.filter(Likes.message_id==msg_id).first()
-
-#     # if message is already liked, unlike
-#     if msg:
-#         db.session.delete(msg)
-#     # if message not liked already, create a new like
-#     else:
-#         new_like = Likes(message_id=msg_id, user_id=g.user.id)
-#         db.session.add(new_like)
-
-#     db.session.commit()
-
-#     return redirect('/')
-
-# @app.route('/users/<int:user_id>/likes')
-# def users_likes(user_id):
-#     """ Show list of liked messages for this user """
-#     if not g.user:
-#         flash("Access unauthorized.", "danger")
-#         return redirect("/")
-
-#     user = User.query.get_or_404(user_id)
-    
-#     return render_template('users/show.html', user=user, messages=user.likes)
-
-    
-# @app.route('/users/<int:user_id>/profile', methods=["GET", "POST"])
-# def profile(user_id):
-#     """ Update profile for current user """
-#     if not g.user:
-#         flash("Access unauthorized.", "danger")
-#         return redirect("/")
-
-#     user = User.query.get_or_404(user_id)
-#     form = UserEditForm(obj=user)
-
-#     if form.validate_on_submit():
-#         authorized = User.authenticate(form.username.data, form.password.data)
-
-#         if authorized:
-#             user.username = form.username.data
-#             user.email = form.email.data
-#             user.image_url = form.image_url.data
-#             user.header_image_url = form.header_image_url.data
-#             user.bio = form.bio.data
-
-#             db.session.add(user)
-#             db.session.commit()
-
-#             return redirect(f'/users/{user_id}')
-
-#         else:
-#             flash("Username/password incorrect", "danger")
-#             return redirect("/")
-
-#     return render_template('/users/edit.html', user=user, form=form)

@@ -1,7 +1,6 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField
+from wtforms import StringField, PasswordField, SelectField
 from wtforms.validators import DataRequired, Email, Length, Optional
-
 
 
 class LoginForm(FlaskForm):
@@ -13,6 +12,8 @@ class LoginForm(FlaskForm):
 class UserEditForm(FlaskForm):
     """ Form for editing user profile information """
 
-    username = StringField('Username', validators=[DataRequired()])
-    email = StringField('E-mail', validators=[Optional(), Email()])
-    password = PasswordField('Enter Current Password', validators=[DataRequired(), Length(min=6)])
+    email = StringField('Email', validators=[Optional(), Email()])
+    city = StringField('Current City', validators=[Optional()])
+    state = SelectField('Current State', validators=[Optional()])
+    new_pw = PasswordField('New Password', validators=[Optional(), Length(min=6)])
+    old_pw = PasswordField('Current Password', validators=[Optional(), Length(min=6)])

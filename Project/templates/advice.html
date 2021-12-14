@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<p class="lead text-white text-center display-5 my-5">
+    Points to ponder.
+</p>
+<p class='fs-4 text-white text-center'>
+    There are lots of things to consider before you relocate, but for now let's just
+    talk about BUYING POWER.
+</p>
+<div class='row text-center justify-content-center opacity-80'>
+    <div class="col-9 bg bg-light rounded mt-4 pt-3">
+        <p class="fs-5">
+            A move from {{curr['name']}} to {{dest['name']}} would mean:
+        </p>
+        <p class='fs-5'>
+            Average incomes are {{results['inc_perc']}}% {{results['inc']}},
+            while home prices {{results['home']}}.
+        </p>
+        <p class='fs-4 fw-bold'>
+            {{results['msg']}}
+        </p>
+    </div>
+</div>
+
+
+{% endblock %}
