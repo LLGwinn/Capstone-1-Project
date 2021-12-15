@@ -253,7 +253,7 @@ def show_homepage():
     states = db.session.query(
         Geocode.state.distinct(),Geocode.abbr).order_by(Geocode.abbr).all()
 
-    return render_template('home.html', states=states)
+    return render_template('index.html', states=states)
 
 ##############################################################################
 # User routes:
