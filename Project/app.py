@@ -29,11 +29,11 @@ connect_db(app)
 
 bcrypt = Bcrypt()
 
-states = db.session.query(
-        Geocode.state.distinct(),Geocode.abbr).order_by(Geocode.abbr).all()
-
 def get_state_abbr(state_code):
     """ Find the state abbreviation that matches the given state code """
+
+    states = db.session.query(
+        Geocode.state.distinct(),Geocode.abbr).order_by(Geocode.abbr).all()
 
     for code, abbr in states:
         if state_code == code:
@@ -95,7 +95,7 @@ def analyze(curr, dest):
     elif (inc_ratio < 1) and (home_ratio > (inc_ratio + .05)):
         income = 'lower'
         inc_percent = round(100 - (inc_ratio * 100))
-        home = f'would be {round((home_ratio -1) * 100)}% more'
+        home = f'would be {round((home_ratio - 1) * 100)}% more'
         msg = 'Lower pay and less buying power. Terrible move!'
   
     return ({'inc':income, 'inc_perc':inc_percent, 'home':home, 'msg':msg }) 
@@ -188,6 +188,9 @@ def add_user_to_g():
 
 @app.route('/register')
 def show_registration_form():
+
+    states = db.session.query(
+        Geocode.state.distinct(),Geocode.abbr).order_by(Geocode.abbr).all()
  
     return render_template('register.html', states=states)
 
@@ -205,7 +208,6 @@ def create_account():
                              request.form['email'],
                              city_id.id
         )
-        print(user)
         db.session.commit()
 
     except IntegrityError:
@@ -248,6 +250,9 @@ def handle_logout():
 @app.route('/')
 def show_homepage():
 
+    states = db.session.query(
+        Geocode.state.distinct(),Geocode.abbr).order_by(Geocode.abbr).all()
+
     return render_template('home.html', states=states)
 
 ##############################################################################
@@ -271,6 +276,9 @@ def show_user_info(user_id):
 @app.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
 def edit_user(user_id):
     """ Edit user profile information """
+
+    states = db.session.query(
+        Geocode.state.distinct(),Geocode.abbr).order_by(Geocode.abbr).all()
 
     if not g.user:
         flash("Please log in to edit.", "danger")
@@ -411,10 +419,6 @@ def get_advice():
 
 # ##############################################################################
 # # Turn off all caching in Flask
-# #   (useful for dev; in production, this kind of stuff is typically
-# #   handled elsewhere)
-# #
-# # https://stackoverflow.com/questions/34066804/disabling-caching-in-flask
 
 @app.after_request
 def add_header(req):
