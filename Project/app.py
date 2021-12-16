@@ -1,4 +1,5 @@
-import os, requests, keys, math
+import os, requests
+import keys
 
 from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
@@ -15,10 +16,7 @@ app = Flask(__name__)
 
 # Get DB_URI from environ variable.
 # If not set there, use development local db.
-app.config['SQLALCHEMY_DATABASE_URI'] = (
-    os.environ.get('DATABASE_URL', 'postgresql:///relocation_asst'))
-    # 'postgresql:///blogly').replace("postgres://", "postgresql://", 1
-
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL','postgresql:///relocation_asst').replace("postgres://", "postgresql://", 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ECHO'] = False
 app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
@@ -50,23 +48,23 @@ def analyze(curr, dest):
        (int(dest['census']['home'])/int(curr['census']['home'])),
         2)
 
-    # positive income move, home price same or positive within 5%
+    # positive income move, home prices same or more within 5% of income ratio
     # (more money, same buying power)
-    if (inc_ratio >= 1) and (inc_ratio <= home_ratio <= (inc_ratio + .05)):
+    if (inc_ratio >= 1) and ((.98 <= home_ratio <= 1.02) or ((inc_ratio - .05) <= home_ratio <= inc_ratio + .05)):
         income = 'higher'
         inc_percent = round((inc_ratio - 1) * 100)
-        home = 'are about the same.'
+        home = f"are about the same or would increase by about the same percentage ({round(100 - (home_ratio * 100))})%"
         msg = 'This could be a good move for you!'
 
     # positive income move, home prices lower
     # (more money, more buying power)
-    if (inc_ratio >= 1) and (home_ratio < inc_ratio):
+    if (inc_ratio >= 1) and ((home_ratio < 1)):
         income = 'higher'
         inc_percent = round((inc_ratio - 1) * 100)
         home = f'are {round(100 - (home_ratio * 100))}% lower'
         msg = 'This is definitely a good move for you!'
 
-    # positive income move, home price positive at least 5% higher
+    # positive income move, home prices higher at least 5% more than income ratio
     # (more money, less buying power)
     elif (inc_ratio >= 1) and (home_ratio > (inc_ratio + .05)):
         income = 'higher'
@@ -74,23 +72,31 @@ def analyze(curr, dest):
         home = f'would be {round((home_ratio -1) * 100)}% more'
         msg = 'Your buying power is lower. Not a good move.'
 
-    # negative income move, home prices same or positive within 5%
+    # positive income move, home prices higher but not more than income ratio
+    # #(more money, a little more buying power)
+    elif (inc_ratio >=1) and (1.02 < home_ratio <= (inc_ratio + .05)):
+        income = 'higher'
+        inc_percent = round((inc_ratio - 1) * 100)
+        home = f'would only be {round((home_ratio -1) * 100)}% more'
+        msg = 'Your buying power is a little better. How important is this move?'
+
+    # negative income move, home prices same or more within 5% of income ratio
     # (less money, same buying power)
-    elif (inc_ratio < 1) and (inc_ratio <= home_ratio <= (inc_ratio + .05)):
+    elif (inc_ratio < 1) and ((.98 <= home_ratio <= 1.02) or ((inc_ratio - .05) <= home_ratio <= inc_ratio + .05)):
         income = 'lower'
         inc_percent = round(100 - (inc_ratio * 100))
-        home = 'are about the same'
-        msg = 'It might not be disastrous, but how important is this move?'
+        home = f'are about the same or would decrease by about the same percentage ({round(100 - (home_ratio * 100))})%'
+        msg = 'Can you afford to take a pay cut and keep the same expenses?'
 
     # negative income move, home prices lower
     # (less money, more buying power)
-    elif (inc_ratio < 1) and (home_ratio <= (inc_ratio + .05)):
+    elif (inc_ratio < 1) and (home_ratio <= 1):
         income = 'lower'
         inc_percent = round(100 - (inc_ratio * 100))
         home = f'would be {round(100 - (home_ratio * 100))}% lower'
-        msg = 'It might not be disastrous, but how important is this move?'
+        msg = 'Do you want to earn less income even if housing prices are lower? How important is this move?'
 
-    # negative income move, home prices positive at least 5% higher
+    # negative income move, home prices higher at least 5% higher than income ratio
     # (less money, less buying power)
     elif (inc_ratio < 1) and (home_ratio > (inc_ratio + .05)):
         income = 'lower'
