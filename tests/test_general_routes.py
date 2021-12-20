@@ -1,13 +1,12 @@
 """ General View tests """
 
 # to run:
-#    FLASK_ENV=production python3 -m unittest test_general_routes.py
+#    FLASK_ENV=production python3 -m unittest tests/test_general_routes.py
 
 import os
 from unittest import TestCase
-from csv import DictReader
 
-from models import db, connect_db, User, Geocode, User_Favorites
+from models import db, connect_db, User, User_Favorites
 
 # Specify test database
 os.environ['DATABASE_URL'] = "postgresql:///relocation-asst-test"
@@ -17,12 +16,6 @@ from app import app, CURR_USER_KEY
 # Create tables
 db.drop_all()
 db.create_all()
-
-# Add Census Bureau cities to Geocode table
-with open('all-geocodes-v2020.csv') as geocodes:
-    db.session.bulk_insert_mappings(Geocode, DictReader(geocodes))
-
-db.session.commit()
 
 app.config['WTF_CSRF_ENABLED'] = False
 
@@ -36,7 +29,7 @@ class GeneralViewTestCase(TestCase):
 
         self.client = app.test_client()
 
-        user1 = User.register('testuser1','testpw1', 'test1@test.com', 100)
+        user1 = User.register('testuser1','testpw1', 'test1@test.com', '00124','01')
         user1_id = 1000
         user1.id = user1_id
 
@@ -46,7 +39,7 @@ class GeneralViewTestCase(TestCase):
         
         self.user1 = user1
 
-        favorite1 = User_Favorites(user_id=self.user1.id, city_id=999)
+        favorite1 = User_Favorites(user_id=self.user1.id, city_id='00460', state_id='01')
         db.session.add(favorite1)
         db.session.commit()
 
@@ -102,8 +95,8 @@ class GeneralViewTestCase(TestCase):
                                         data={'username':'testuser2',
                                               'password':'testpw2', 
                                               'email':'test2@test.com', 
-                                              'city':'Tampa',
-                                              'state':'12'},
+                                              'user-city':'Tampa',
+                                              'user-state':'Florida'},
                                         follow_redirects=True)
 
             self.assertEqual(response.status_code, 200)

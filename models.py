@@ -50,7 +50,7 @@ class User(db.Model):
         nullable=False
     )
 
-    favorites = db.relationship('User_Favorites', backref='users')
+    favorites = db.relationship('User_Favorites', cascade="all,delete", backref='users')
 
     def __repr__(self):
         return f'<User #{self.id}: {self.username}>'

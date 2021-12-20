@@ -1,13 +1,12 @@
 """ User View tests """
 
 # to run:
-#    FLASK_ENV=production python -m unittest test_user_routes.py
+#    FLASK_ENV=production python3 -m unittest tests/test_user_routes.py
 
-import os
+import os, requests
 from unittest import TestCase
-from csv import DictReader
 
-from models import db, connect_db, User, Geocode, User_Favorites
+from models import db, connect_db, User, User_Favorites
 
 # Specify test database
 os.environ['DATABASE_URL'] = "postgresql:///relocation-asst-test"
@@ -17,10 +16,6 @@ from app import app, CURR_USER_KEY
 # Create tables
 db.drop_all()
 db.create_all()
-
-# Add Census Bureau cities to Geocode table
-with open('all-geocodes-v2020.csv') as geocodes:
-    db.session.bulk_insert_mappings(Geocode, DictReader(geocodes))
 
 db.session.commit()
 
@@ -36,11 +31,11 @@ class UserViewTestCase(TestCase):
 
         self.client = app.test_client()
 
-        user1 = User.register('testuser1','testpw1', 'test1@test.com', 100)
+        user1 = User.register('testuser1','testpw1', 'test1@test.com', '68818', '27')
         user1_id = 1000
         user1.id = user1_id
 
-        user2 = User.register('testuser2','testpw2', 'test2@test.com', 200)
+        user2 = User.register('testuser2','testpw2', 'test2@test.com', '00460', '01')
         user2_id = 2000
         user2.id = user2_id
 
@@ -52,7 +47,7 @@ class UserViewTestCase(TestCase):
         self.user1 = user1
         self.user2 = user2
 
-        favorite1 = User_Favorites(user_id=self.user1.id, city_id=999)
+        favorite1 = User_Favorites(user_id=self.user1.id, city_id='00124', state_id='01')
         db.session.add(favorite1)
         db.session.commit()
 
@@ -92,12 +87,17 @@ class UserViewTestCase(TestCase):
             with c.session_transaction() as sess:
                 sess[CURR_USER_KEY] = self.user1.id
 
-            city = Geocode.query.filter(Geocode.id==self.favorite1.city_id).first()
+            city_data = requests.get(
+                f'https://api.census.gov/data/2019/acs/acs5/subject?get=NAME&for=place:{self.user1.user_city}&in=state:{self.user1.user_state}'
+            ).json()
+
+            city = city_data[1][0].rsplit(',',1)[0].rsplit(' ',1)[0]
+
             response = self.client.get(f'/users/{self.user1.id}')
 
             self.assertEqual(response.status_code, 200)
             self.assertIn(f'Username: {self.user1.username}', str(response.data))
-            self.assertIn(f'{city.name.rsplit(" ", 1)[0]}', str(response.data))
+            self.assertIn(f'{city}', str(response.data))
 
     def test_no_session_edit_user(self):
         """ Display warning, redirect to login screen """
@@ -117,7 +117,7 @@ class UserViewTestCase(TestCase):
             response = self.client.get(f'/users/{self.user1.id}/edit')
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('Edit your information.', str(response.data))
+        self.assertIn('Edit information for', str(response.data))
         self.assertIn(f'{self.user1.username}', str(response.data))
         self.assertIn('value="test1@test.com"', str(response.data))
 
@@ -128,7 +128,8 @@ class UserViewTestCase(TestCase):
                 sess[CURR_USER_KEY] = self.user1.id
             response = self.client.post(f'/users/{self.user1.id}/edit',
                                         data={'old_pw':'testpw1',
-                                              'email':'changed@test.com'},
+                                              'email':'changed@test.com'
+                                              },
                                         follow_redirects=True)
 
         self.assertEqual(response.status_code, 200)
@@ -141,11 +142,11 @@ class UserViewTestCase(TestCase):
             with c.session_transaction() as sess:
                 sess[CURR_USER_KEY] = self.user1.id
 
-            response = self.client.post(f'/users/favs/add/999', follow_redirects=True)
+            response = self.client.post('/users/favs/add/00124/01', follow_redirects=True)
 
             self.assertEqual(response.status_code, 204)
             self.assertNotIn("fas fa-heart", str(response.data))
-            self.assertNotIn(self.favorite1.id, [self.favorite1.id for fav in User_Favorites.query.all()])
+            self.assertNotIn(self.favorite1.id, [fav.id for fav in User_Favorites.query.all()])
 
     def test_no_session_delete_user(self):
         """ Display warning, redirect to login screen """

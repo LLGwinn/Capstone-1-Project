@@ -1,13 +1,12 @@
 """ City View tests """
 
 # to run:
-#    FLASK_ENV=production python3 -m unittest test_city_routes.py
+#    FLASK_ENV=production python3 -m unittest tests/test_city_routes.py
 
 import os
 from unittest import TestCase
-from csv import DictReader
 
-from models import db, connect_db, User, Geocode, User_Favorites
+from models import db, connect_db, User, User_Favorites
 
 # Specify test database
 os.environ['DATABASE_URL'] = "postgresql:///relocation-asst-test"
@@ -17,12 +16,6 @@ from app import app, CURR_USER_KEY
 # Create tables
 db.drop_all()
 db.create_all()
-
-# Add Census Bureau cities to Geocode table
-with open('all-geocodes-v2020.csv') as geocodes:
-    db.session.bulk_insert_mappings(Geocode, DictReader(geocodes))
-
-db.session.commit()
 
 app.config['WTF_CSRF_ENABLED'] = False
 
@@ -45,11 +38,18 @@ class CityViewTestCase(TestCase):
         """ Shows data from Tampa, FL and Miami, FL """
         with self.client as c:
 
-            response = self.client.get('/cities/compare?curr-city=Tampa&curr-state=12&dest-city=Miami&dest-state=12')
+            response = self.client.post('/cities/compare',
+                                        data={'curr-city':'Tampa',
+                                              'curr-state':'12',
+                                              'curr-abbr':'US-FL',
+                                              'dest-city':'Miami',
+                                              'dest-state':'12'
+                                            }, follow_redirects=True
+                                        )
 
             self.assertEqual(response.status_code, 200)
-            self.assertIn('Tampa, FL', str(response.data))
-            self.assertIn('Miami, FL', str(response.data))
+            self.assertIn('Tampa', str(response.data))
+            self.assertIn('Miami', str(response.data))
             self.assertIn('Population', str(response.data))
             self.assertIn('img src="http://openweathermap.org/img/', str(response.data))
 

@@ -288,8 +288,6 @@ def show_user_info(user_id):
 
             city_name = item_data[1][0].rsplit(',',1)[0].rsplit(' ',1)[0]
             state_name = item_data[1][0].rsplit(', ')[1]
-            print(item_data[1][0])
-            print(item_data[1][0].rsplit(', '))
 
             favorites.append({'id':item.id, 'city':city_name, 'state':state_name})
   
