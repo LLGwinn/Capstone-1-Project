@@ -1,13 +1,13 @@
 import os, requests
 import keys
 
-from flask import Flask, render_template, request, flash, redirect, session, g
+from flask import Flask, render_template, request, flash, redirect, session, g, jsonify
 from flask_debugtoolbar import DebugToolbarExtension
 from requests.api import get
 from sqlalchemy.exc import IntegrityError
 from flask_bcrypt import Bcrypt
 
-from models import db, connect_db, User, User_Favorites, Geocode
+from models import db, connect_db, User, User_Favorites
 from forms import LoginForm, UserEditForm
 
 CURR_USER_KEY = 'curr_user'
@@ -26,16 +26,6 @@ toolbar = DebugToolbarExtension(app)
 connect_db(app)
 
 bcrypt = Bcrypt()
-
-def get_state_abbr(state_code):
-    """ Find the state abbreviation that matches the given state code """
-
-    states = db.session.query(
-        Geocode.state.distinct(),Geocode.abbr).order_by(Geocode.abbr).all()
-
-    for code, abbr in states:
-        if state_code == code:
-            return abbr
 
 def analyze(curr, dest):
     """ Compare income and home value data from both cities """
@@ -108,10 +98,12 @@ def analyze(curr, dest):
 
 ##############################################################################
 # API Calls
-def get_weather(city):
+def get_weather(city, state):
     """ Access OpenWeather API for current weather """
+    state_abbr = state[3:]
+
     res = requests.get(
-        f'https://api.openweathermap.org/data/2.5/weather?q={city}&units=imperial&appid={keys.weather_key}'
+        f'https://api.openweathermap.org/data/2.5/weather?q={city},{state_abbr},US&units=imperial&appid={keys.weather_key}'
         )
     data = res.json()
 
@@ -121,6 +113,31 @@ def get_weather(city):
         icon_code = data['weather'][0]['icon']
         temp = data['main']['temp']
         return {'icon':icon_code, 'temp':temp}
+
+def get_census_codes(city, state):
+    """ Get state and place codes for census api """
+
+    all_states = requests.get(
+        'https://api.census.gov/data/2019/acs/acs5/subject?get=NAME&for=state:*').json()
+ 
+    state_code = [item[1] for item in all_states if item[0] == state][0]
+
+    # Bug in the geocoder lists New York as New York City. Grr.
+    if city == 'New York City':
+        city = 'New York'
+ 
+    cities = requests.get(
+        f'https://api.census.gov/data/2019/acs/acs5/subject?get=NAME&for=place:*&in=state:{state_code}'
+    ).json()
+
+    for item in cities:
+        census_city_name = item[0].rsplit(',',1)[0].rsplit(' ',1)[0]
+        if census_city_name==city:
+            place_code = item[2]
+            state_code = item[1]
+            return {'place':place_code,'state':state_code}
+
+    return False
 
 def get_census_data(city, state):
     """ Access U.S. Census American Community Survey """
@@ -133,44 +150,24 @@ def get_census_data(city, state):
             'home':'DP04_0089E'
             }
 
-    geocode = Geocode.query.filter(
-        Geocode.name.like(f'{city}%'),
-        Geocode.state==state
-        ).first()
-
-    if geocode:
-        geo_state = geocode.state
-        geo_place = geocode.place
-        geo_id = geocode.id
-
-        query_url = base_url + \
-            (f'{vars["pop"]},{vars["age"]},{vars["inc"]},{vars["home"]}&for=place:{geo_place}&in=state:{geo_state}')
-
-        response = requests.get(query_url)
-        data = response.json()
-
-        geocode_data = {"id":geo_id,
-                        "pop":data[1][1], 
-                        "age":data[1][2],
-                        "inc":data[1][3], 
-                        "home":data[1][4],
-                        "state":geo_state,
-                        "place":geo_place}
-
-        for item in geocode_data:
-            if geocode_data[item] == '-888888888':
-                geocode_data[item] = "no data available"
-
-        return geocode_data
+    query_url = base_url + \
+             (f'{vars["pop"]},{vars["age"]},{vars["inc"]},{vars["home"]}&for=place:{city}&in=state:{state}')
     
-    else:
-        return {"id":'city not found',
-                "pop":'city not found', 
-                "age":'city not found',
-                "inc":'city not found', 
-                "home":'city not found',
-                "state":'00',
-                "place":'00'}
+    response = requests.get(query_url).json()
+
+    city_data = {"pop":response[1][1], 
+                 "age":response[1][2],
+                 "inc":response[1][3], 
+                 "home":response[1][4],
+                 "state":state,
+                 "place":city}
+
+    # if census has no data for a particular variable for the specified city
+    for item in city_data:
+        if city_data[item] == '-888888888':
+            city_data[item] = "no data available"
+
+    return city_data
 
 ##############################################################################
 # Register/login/logout
@@ -194,25 +191,28 @@ def add_user_to_g():
 
 @app.route('/register')
 def show_registration_form():
-
-    states = db.session.query(
-        Geocode.state.distinct(),Geocode.abbr).order_by(Geocode.abbr).all()
  
-    return render_template('register.html', states=states)
+    return render_template('register.html')
 
 @app.route('/register', methods=['POST'])
 def create_account():
     """ Create new user, add to DB, log user in. 
         If username is already in db, flash message and re-render form.
     """
-    city_id = Geocode.query.filter(Geocode.name.like(f'{request.form["city"]}%'), 
-                                    Geocode.state==request.form['state']).first()
+    codes = get_census_codes(request.form['user-city'], request.form['user-state'])
+    if not codes:
+        flash(f"{request.form['user-city']} was not found in the US Census data. Please try a different city.",'danger')
+        return redirect('/')
+
+    city = codes['place']
+    state = codes['state']
 
     try:
         user = User.register(request.form['username'],
                              request.form['password'],
                              request.form['email'],
-                             city_id.id
+                             city,
+                             state
         )
         db.session.commit()
 
@@ -256,10 +256,7 @@ def handle_logout():
 @app.route('/')
 def show_homepage():
 
-    states = db.session.query(
-        Geocode.state.distinct(),Geocode.abbr).order_by(Geocode.abbr).all()
-
-    return render_template('index.html', states=states)
+    return render_template('home.html')
 
 ##############################################################################
 # User routes:
@@ -274,17 +271,34 @@ def show_user_info(user_id):
 
     else:
         user = User.query.get(user_id)
-        user_city = (Geocode.query.get(user.current_city)).name.rsplit(' ',1)[0]
-        favs = user.favorites
+        user_city_data = requests.get(
+                f'https://api.census.gov/data/2019/acs/acs5/subject?get=NAME&for=place:{user.user_city}&in=state:{user.user_state}'
+            ).json()
 
-        return render_template('user_info.html', favorites=favs, user=user, user_city=user_city)
+        user_city = user_city_data[1][0].rsplit(',',1)[0].rsplit(' ',1)[0]
+        user_state = user_city_data[1][0].rsplit(', ')[1]
+
+        favs = User_Favorites.query.filter(User_Favorites.user_id==user.id).all()
+        favorites = []
+
+        for item in favs:
+            item_data = requests.get(
+                f'https://api.census.gov/data/2019/acs/acs5/subject?get=NAME&for=place:{item.city_id}&in=state:{item.state_id}'
+            ).json()
+
+            city_name = item_data[1][0].rsplit(',',1)[0].rsplit(' ',1)[0]
+            state_name = item_data[1][0].rsplit(', ')[1]
+            print(item_data[1][0])
+            print(item_data[1][0].rsplit(', '))
+
+            favorites.append({'id':item.id, 'city':city_name, 'state':state_name})
+  
+        return render_template('user_info.html', 
+                                favorites=favorites, user=user, user_city=user_city, user_state=user_state)
 
 @app.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
 def edit_user(user_id):
     """ Edit user profile information """
-
-    states = db.session.query(
-        Geocode.state.distinct(),Geocode.abbr).order_by(Geocode.abbr).all()
 
     if not g.user:
         flash("Please log in to edit.", "danger")
@@ -292,10 +306,7 @@ def edit_user(user_id):
 
     else:
         user = User.query.get_or_404(user_id)
-        user_city = (Geocode.query.get(user.current_city)).name.rsplit(' ',1)[0]
-        user_state = (Geocode.query.get(user.current_city)).state
-        form = UserEditForm(obj=user, state=(Geocode.query.get(user.current_city)).abbr)
-        form.state.choices = [abbr for code, abbr in states]
+        form = UserEditForm()
 
         if form.validate_on_submit():
             authorized = User.authenticate(g.user.username, form.old_pw.data)
@@ -307,11 +318,14 @@ def edit_user(user_id):
                     user.password = new_hashed_pw
                 if form.email.data:
                     user.email = form.email.data
-                if form.city.data:
-                    user.current_city = Geocode.query.filter(
-                            Geocode.name.like(f'{form.city.data}%'),
-                            Geocode.abbr==form.state.data
-                    ).first().id
+                if request.form['user-city']:
+                    codes = get_census_codes(request.form['user-city'], request.form['user-state'])
+                    if not codes:
+                        flash(f"{request.form['user-city']} was not found in the US Census data. Please try a different city.",'danger')
+                        return redirect('/')
+
+                    user.user_city = codes['place']
+                    user.user_state = codes['state']
 
                 db.session.add(user)
                 db.session.commit()
@@ -322,11 +336,10 @@ def edit_user(user_id):
                 flash("Username/password incorrect", "danger")
                 return redirect("/")
 
-        return render_template('user_edit.html', user=user, form=form, 
-                            user_city=user_city, user_state=user_state)
+        return render_template('user_edit.html', user=user, form=form)
 
-@app.route('/users/favs/add/<int:geo_id>', methods=['POST'])
-def toggle_fav_city(geo_id):
+@app.route('/users/favs/add/<city>/<state>', methods=['POST'])
+def toggle_fav_city(city, state):
     """ Add or remove city from favorites table """
 
     if not g.user:
@@ -334,23 +347,37 @@ def toggle_fav_city(geo_id):
         return redirect('/login')
 
     else:
-        geocode = Geocode.query.get_or_404(geo_id)
-        user = g.user.id
+        user = g.user
 
-        fav = User_Favorites.query.filter(User_Favorites.city_id==geocode.id,
-                                            User_Favorites.user_id==user).one_or_none()
+        fav = User_Favorites.query.filter(User_Favorites.city_id==city,
+                                          User_Favorites.state_id==state,
+                                          User_Favorites.user_id==user.id).one_or_none()
 
         # if city is already favorited, unfavorite
         if fav:
             db.session.delete(fav)
         # if city not favorited already, create a new favorite
         else:
-            new_favorite = User_Favorites(city_id=geocode.id, user_id=user)
+            new_favorite = User_Favorites(user_id=user.id,
+                                          city_id=city,
+                                          state_id=state
+                                          )
             db.session.add(new_favorite)
 
         db.session.commit()
 
         return redirect('', 204)
+
+@app.route('/users/favs/delete/<int:id>', methods=['DELETE'])
+def delete_favorite(id):
+    """ Delete user favorite when user_info page trash button clicked """
+
+    favorite = User_Favorites.query.get_or_404(id)
+
+    db.session.delete(favorite)
+    db.session.commit()
+
+    return jsonify(message='deleted')
 
 @app.route('/users/<int:user_id>/delete')
 def delete_user(user_id):
@@ -370,34 +397,49 @@ def delete_user(user_id):
 ##############################################################################
 # City routes:
  
-@app.route('/cities/compare')
+@app.route('/cities/compare', methods=['POST'])
 def compare_cities():
     """ Show data for two cities""" 
 
-    curr_city = request.args.get('curr-city')
-    curr_state = request.args.get('curr-state')
-    dest_city = request.args.get('dest-city')
-    dest_state = request.args.get('dest-state')
+    curr_city = request.form['curr-city']
+    curr_state = request.form['curr-state']
+    curr_abbr = request.form['curr-abbr']
+    dest_city = request.form['dest-city']
+    dest_state = request.form['dest-state']
+    dest_abbr = request.form['dest-abbr']
 
-    curr_census_data = get_census_data(curr_city, curr_state)
-    dest_census_data = get_census_data(dest_city, dest_state)
+    if not curr_city or not curr_state or not dest_city or not dest_state:
+        flash('Uh oh. Looks like some input data was missing. Please try again.', 'danger')
+        return redirect('/')
+
+    curr_codes = get_census_codes(curr_city, curr_state)
+    if not curr_codes:
+        flash(f'{curr_city} was not found in the US Census data. Please try a different city.','danger')
+        return redirect('/')
+    dest_codes = get_census_codes(dest_city, dest_state)
+    if not dest_codes:
+        flash(f'{dest_city} was not found in the US Census data. Please try a different city.','danger')
+        return redirect('/')
+
+    curr_census_data = get_census_data(curr_codes['place'], curr_codes['state'])
+    dest_census_data = get_census_data(dest_codes['place'], dest_codes['state'])
 
     if curr_census_data['state'] != '00':
-        curr_weather = get_weather(curr_city)
+        curr_weather = get_weather(curr_city, curr_abbr)
     else:
         curr_weather = {'icon':'01n', 'temp':None}
 
     if dest_census_data['state'] != '00':
-        dest_weather = get_weather(dest_city)
+        dest_weather = get_weather(dest_city, dest_abbr)
     else:
         dest_weather = {'icon':'01n', 'temp':None}
         
     curr_data = {"name":curr_city,
-                 "abbr": get_state_abbr(curr_state),
+                 "abbr": curr_abbr[3:],
                  "census":curr_census_data, 
                  "weather":curr_weather}
     dest_data = {"name":dest_city,
-                 "abbr": get_state_abbr(dest_state),
+                 "abbr": dest_abbr[3:],
                  "census":dest_census_data,
                  "weather":dest_weather}
 
@@ -421,6 +463,11 @@ def get_advice():
     results = analyze(curr, dest)
 
     return render_template('advice.html', results=results, curr=curr, dest=dest)
+
+@app.route('/map_search')
+def show_search():
+    token = keys.mapbox_token
+    return render_template('map_search.html', token=token)
 
 
 # ##############################################################################

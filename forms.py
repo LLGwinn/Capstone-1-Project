@@ -13,7 +13,6 @@ class UserEditForm(FlaskForm):
     """ Form for editing user profile information """
 
     email = StringField('Email', validators=[Optional(), Email()])
-    city = StringField('Current City', validators=[Optional()])
-    state = SelectField('Current State', validators=[Optional()])
     new_pw = PasswordField('New Password', validators=[Optional(), Length(min=6)])
     old_pw = PasswordField('Current Password', validators=[Optional(), Length(min=6)])
+    city = StringField('Home City', validators=[Optional()])

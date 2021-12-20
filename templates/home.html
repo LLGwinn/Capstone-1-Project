@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.js"></script>
+{% endblock %}
+
+{% block content %}
+<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.7.2/mapbox-gl-geocoder.min.js"></script>
+<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.7.2/mapbox-gl-geocoder.css" type="text/css">
+
+<div class="container-fluid home-bg">
+
+    <h1 class="h1 text-white text-center mt-5">Relocating?</h1>
+    <p class="lead text-white text-center">
+        Let Relocation Assistant get you the information you need.
+    </p>
+    <div id='cities-form-container' class="container-fluid text-center">
+        <form action='/cities/compare' method='POST' id='cities-form' class='my-5'>
+            <div class="row row-cols-1 row-cols-sm-2 mb-5 justify-content-around">
+                <div class='col-sm-6 d-flex justify-content-center mt-2' id='curr-city-div'> 
+                    <pre id="curr-result"></pre>
+                </div>
+                <div class='col-sm-6 d-flex justify-content-center mt-2' id='dest-city-div'>
+                    <pre id="dest-result"></pre>
+                </div>
+                
+                <input id ='curr-city' name ='curr-city' type='text' hidden>
+                <input id='curr-state' name='curr-state' type='text' hidden>
+                <input id='curr-abbr' name='curr-abbr' type='text' hidden>
+                <input id='dest-city' name='dest-city' type='text' hidden>
+                <input id='dest-state' name='dest-state'type='text' hidden>
+                <input id='dest-abbr' name='dest-abbr' type='text' hidden>
+
+            </div>
+            <input class="btn btn-dark" type="submit" value="Compare Cities">
+        </form>
+        
+    </div>    
+</div>
+<script src='../static/autocomplete.js'></script>
+
+{% endblock %}

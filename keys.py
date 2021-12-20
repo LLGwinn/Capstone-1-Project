@@ -1,0 +1,2 @@
+weather_key = '38b23dca5266fbaec142ba9c8f6ccac8'
+mapbox_token = 'pk.eyJ1IjoibGd3aW5uIiwiYSI6ImNreDljMWNuNjJlb2oyb211N2NieDh0MHYifQ.Gwv6bcmeKcZx2lqNHOUbdw'

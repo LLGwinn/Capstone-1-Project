@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.js"></script>
+{% endblock %}
+
+{% block content %}
+<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.7.2/mapbox-gl-geocoder.min.js"></script>
+<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.7.2/mapbox-gl-geocoder.css" type="text/css">
+
+<p class="lead text-white text-center display-5 my-5">
+    Edit information for {{user.username}}.
+</p>
+
+<div class="row justify-content-center">
+    <div class="col-sm-6">
+        <form method="POST" id="user-edit-form">
+            {{ form.hidden_tag() }}
+            
+            {{form.email.label}}
+            {{form.email(class='form-control', value=user.email)}}
+            {{form.city.label}}
+            <div class='form-control col-sm-6 d-flex justify-content-start mt-2 p-0' id='user-city-div'> 
+                <pre id="user-result"></pre>
+            </div>
+            
+            <input id ='user-city' name ='user-city' type='text' hidden>
+            <input id='user-state' name='user-state' type='text' hidden>
+            <input id='user-abbr' name='user-abbr' type='text' hidden>
+    
+            {{form.new_pw.label}}
+            {{form.new_pw(class='form-control', autocomplete='off')}}
+
+            <p class='text-white mt-3'>To confirm changes, enter your current password:</p>
+                {% if form.old_pw.errors %}
+                    {% for error in form.old_password.errors %}
+                     <span class="text-danger">{{ error }}</span>
+                {% endfor %}
+                {% endif %}
+                {{ form.old_pw(placeholder="Enter current password", class="form-control mb-3", 
+                                autocomplete='off') }}
+
+            <div class="edit-btn-area">
+                <button class="btn btn-dark btn-lg">Change it!</button>
+                <a href="/users/{{user.id}}" class="btn btn-sm btn-danger ms-5 me-2">Cancel</a>
+                <a href="/users/{{user.id}}/delete" class="btn btn-sm btn-secondary">Delete account</a>
+            </div>
+        </form>
+
+    </div>
+</div>
+<script src='/static/edit_user_city.js'></script>
+
+{% endblock %}

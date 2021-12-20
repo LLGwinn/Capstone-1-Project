@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.js"></script>
+{% endblock %}
+
+{% block content %}
+<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.7.2/mapbox-gl-geocoder.min.js"></script>
+<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.7.2/mapbox-gl-geocoder.css" type="text/css">
+
+<form action='/register' id='registration-form' class='mt-5' method='POST'>
+    <div class="row justify-content-center">
+        <div class="col-5">
+            <div class="mb-3">
+                <label for="username" class="form-label text-white">Username</label>
+                <input type="text" class="form-control" id="username" name='username' required>
+            </div>
+        </div>
+    </div>
+    <div class="row justify-content-center">
+        <div class="col-5">
+            <div class="mb-3">
+                <label for="password" class="form-label text-white">Password</label>
+                <input type="password" class="form-control" id="password" name='password' required>
+            </div>
+        </div>
+    </div>
+    <div class="row justify-content-center">
+        <div class="col-5">
+            <label for="user-city-div" class="form-label text-white mb-0">Home City</label>
+            <div class='col-sm-6 form-control d-flex justify-content-start mt-2 mb-3' id='user-city-div' name='user-city-div'> 
+                <pre id="user-result"></pre>
+            </div>
+            
+            <input id ='user-city' name ='user-city' type='text' hidden>
+            <input id='user-state' name='user-state' type='text' hidden>
+            <input id='user-abbr' name='user-abbr' type='text' hidden>
+        </div>
+    </div>
+        <div class="row justify-content-center">
+            <div class="col-5">
+                <div class="mb-3">
+                    <label for="email" class="form-label text-white">Email address</label>
+                    <input type="email" class="form-control" id="email" name='email' required>
+                    <div id="emailMsg" class="form-text text-dark">We'll never share your email with anyone else.</div>
+                </div>
+            </div>
+        </div>
+
+    <div class="row justify-content-center">
+        <div class="col-5">
+            <button type="submit" class="btn btn-dark">Create Account</button>
+        </div>
+    </div>
+
+</form>
+<script src='/static/new_user_city.js'></script>
+
+{% endblock %}

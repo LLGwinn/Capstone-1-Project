@@ -14,35 +14,6 @@ def connect_db(app):
 
 ############### MODELS ###################
 
-class Geocode(db.Model):
-    """ Census Bureau state and place codes for all cities """
-
-    __tablename__ = 'geocodes'
-
-    id = db.Column(
-        db.Integer,
-        primary_key=True
-    )
-
-    state = db.Column(
-        db.Text
-    )
-
-    place = db.Column(
-        db.Text
-    )
-
-    name = db.Column(
-        db.Text
-    )
-
-    abbr = db.Column(
-        db.Text
-    )
-
-    def __repr__(self):
-        return f'<Geocode: state={self.state}, place={self.place}, name={self.name}>'
-
 class User(db.Model):
     """ Users with accounts """
 
@@ -69,21 +40,24 @@ class User(db.Model):
         nullable=False
     )
 
-    current_city = db.Column(
-        db.Integer,
-        db.ForeignKey('geocodes.id'),
+    user_city = db.Column(
+        db.Text,
         nullable=False
     )
 
-    favorites = db.relationship('Geocode', secondary='favorites', backref='users')
-    cities = db.relationship('Geocode', backref='user_ids')
+    user_state = db.Column(
+        db.Text,
+        nullable=False
+    )
+
+    favorites = db.relationship('User_Favorites', backref='users')
 
     def __repr__(self):
         return f'<User #{self.id}: {self.username}>'
 
 
     @classmethod
-    def register(cls, username, password, email, curr_city):
+    def register(cls, username, password, email, city, state):
         """ Create account for user, add to db """
 
         hashed_pwd = bcrypt.generate_password_hash(password).decode('UTF-8')
@@ -92,7 +66,8 @@ class User(db.Model):
             username=username,
             password=hashed_pwd,
             email=email,
-            current_city=curr_city
+            user_city=city,
+            user_state=state
         )
 
         db.session.add(user)
@@ -115,7 +90,7 @@ class User(db.Model):
         return False
 
 class User_Favorites(db.Model):
-    """ Join table - map user to cities they have favorited """
+    """ Map users to cities they have favorited """
 
     __tablename__ = 'favorites'
 
@@ -131,10 +106,18 @@ class User_Favorites(db.Model):
     )
 
     city_id = db.Column(
-        db.Integer,
-        db.ForeignKey('geocodes.id', ondelete='cascade'),
-        unique=True,
+        db.String(5),
         nullable=False
     )
+
+    state_id = db.Column(
+        db.String(2),
+        nullable=False
+    )
+
+    abbr = db.Column(
+        db.Text
+    )
+
 
         

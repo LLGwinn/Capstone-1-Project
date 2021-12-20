@@ -1,4 +1,4 @@
-favBtn = $('.add-fav');
+favBtn = $('#fav-btn');
 icon = favBtn.find('i');
 
 favBtn.click(addFav);
