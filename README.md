@@ -2,6 +2,8 @@
 
 [https://relocation-assistant.herokuapp.com/](https://relocation-assistant.herokuapp.com/)
 
+![screenshot](/static/images/screenshot.png)
+
 This app allows users to compare census data from two cities to help with making a decision on whether to relocate.
 
 After entering the name of the two comparison cities, user will see side-by-side real-time data drawn directly from the external APIs listed below. They can then click on a link to receive some basic advice on whether a move to the destination city makes sense. The logic for the advice is basic for now, based strictly on average incomes and average home values for each area, just to demonstrate that this functionality exists.
@@ -11,13 +13,12 @@ Users can choose to create an account, which will allow them to save their favor
 
 ### External APIS:
 [U.S. Census Bureau]
-
 American Community Survey 5-Year Data (2009-2019) for population, income, home price, and age data.
-[OpenWeather]
 
-Weather conditions for any city.  
+[OpenWeather]
+Weather conditions for any city.
+
 [Mapbox] 
- 
 Autocomplete for city search.
 
 ### Tech Stack:
