@@ -26,9 +26,12 @@ Autocomplete for city search.
 - CSS
 
 ### History:
-This project was created as part of Springboard's Software Engineering Bootcamp in December 2021. The requirement was simply to create a database-driven app that goes further than basic CRUD, and to deploy the app on Heroku. The inspiration for a relocation assistant app came from the many times I, family members, or friends have wondered if relocating would make sense. What's the average income for that city? What's the average home value? And so on.  
-The U.S. Census Bureau was my primary data source, and it was a challenge. The API is complicated, there are dozens, if not hundreds, of variables (data points) to wade through to find the ones you need, and the response objects are difficult to traverse. But there is a wealth of available information, so I know I'll use it again at some point.  
-OpenWeather's API was easy to use, and I love the ability to add the icon to show current weather conditions.  
+This project was created as part of Springboard's Software Engineering Bootcamp in December 2021. The requirement was simply to create a database-driven app that goes further than basic CRUD, and to deploy the app on Heroku. The inspiration for a relocation assistant app came from the many times I, family members, or friends have wondered if relocating would make sense. What's the average income for that city? What's the average home value? And so on. 
+
+The U.S. Census Bureau was my primary data source, and it was a challenge. The API is complicated, there are dozens, if not hundreds, of variables (data points) to wade through to find the ones you need, and the response objects are difficult to traverse. But there is a wealth of available information, so I know I'll use it again at some point. 
+
+OpenWeather's API was easy to use, and I love the ability to add the icon to show current weather conditions.
+  
 Finally, based on feedback from my Springboard mentor and others, I decided to add an autocomplete component to the city search boxes. The popular choice would be Google Places, but their free tier was not generous and required a credit card, so I went with Mapbox. The documentation for Mapbox seemed a little wonky to this beginner, and I found it fairly tricky to implement the autocomplete. Specifically, I found it difficult and cumbersome to customize the search box in any way. But it works well, and its limitations are almost certainly due to my novice status.  
 ### Future:
 If I ever want to complete my Bootcamp, I need to move on from this project for now. But as time allows, I would like to implement the following additional improvements:  
