@@ -12,13 +12,13 @@ Users can choose to create an account, which will allow them to save their favor
 
 
 ### External APIS:
-[U.S. Census Bureau]
+[U.S. Census Bureau]  
 American Community Survey 5-Year Data (2009-2019) for population, income, home price, and age data.
 
-[OpenWeather]
+[OpenWeather]  
 Weather conditions for any city.
 
-[Mapbox] 
+[Mapbox]   
 Autocomplete for city search.
 
 ### Tech Stack:
